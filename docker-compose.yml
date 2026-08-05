@@ -72,5 +72,11 @@ services:
     environment:
       - HERMES_UID=${HERMES_UID:-10000}
       - HERMES_GID=${HERMES_GID:-10000}
-    # Localhost-only. For remote access, tunnel via `ssh -L 9119:localhost:9119`.
-    command: ["dashboard", "--host", "127.0.0.1", "--no-open"]
+    # Bound to 0.0.0.0 so the /api/ws host-header guard doesn't reject
+    # SSH-tunneled clients (bound_host must match the client's Host header,
+    # and a tunneled client's Host header is never a bare "127.0.0.1").
+    # Actual access control is the firewall: this port is NOT opened in ufw,
+    # so it's still only reachable via `ssh -L 9119:localhost:9119` or from
+    # inside the VPS itself. HERMES_DASHBOARD_BASIC_AUTH_* env vars are
+    # mandatory here — a non-loopback bind fails closed without them.
+    command: ["dashboard", "--host", "0.0.0.0", "--no-open"]
