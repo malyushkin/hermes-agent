@@ -79,4 +79,18 @@ services:
     # so it's still only reachable via `ssh -L 9119:localhost:9119` or from
     # inside the VPS itself. HERMES_DASHBOARD_BASIC_AUTH_* env vars are
     # mandatory here — a non-loopback bind fails closed without them.
-    command: ["dashboard", "--host", "0.0.0.0", "--no-open"]
+    #
+    # unset TELEGRAM_BOT_TOKEN: Coolify (and plain `docker compose --env-file`)
+    # injects every resource-level env var into every service in this file,
+    # regardless of which service's `environment:` block references it — so
+    # this container gets the same TELEGRAM_BOT_TOKEN as `gateway` even though
+    # it's never supposed to talk to Telegram. If a gateway is ever started
+    # here by mistake (`hermes gateway start`, or the dashboard UI's own
+    # start/restart control — this has happened, see #29325-adjacent incident),
+    # it would authenticate as the SAME bot as the real `gateway` service and
+    # fight it for the same Telegram getUpdates long-poll session, breaking
+    # messaging for both. `/init` still runs first and completes the normal
+    # s6 bootstrap (chown, profile reconcile) — only the final `dashboard`
+    # process loses the token, so a stray gateway here fails closed
+    # ("no bot token") instead of hijacking the live session.
+    command: ["sh", "-c", "unset TELEGRAM_BOT_TOKEN; exec /opt/hermes/docker/main-wrapper.sh dashboard --host 0.0.0.0 --no-open"]
