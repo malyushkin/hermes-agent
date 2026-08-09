@@ -80,17 +80,33 @@ services:
     # inside the VPS itself. HERMES_DASHBOARD_BASIC_AUTH_* env vars are
     # mandatory here — a non-loopback bind fails closed without them.
     #
-    # unset TELEGRAM_BOT_TOKEN: Coolify (and plain `docker compose --env-file`)
-    # injects every resource-level env var into every service in this file,
-    # regardless of which service's `environment:` block references it — so
-    # this container gets the same TELEGRAM_BOT_TOKEN as `gateway` even though
-    # it's never supposed to talk to Telegram. If a gateway is ever started
-    # here by mistake (`hermes gateway start`, or the dashboard UI's own
-    # start/restart control — this has happened, see #29325-adjacent incident),
-    # it would authenticate as the SAME bot as the real `gateway` service and
-    # fight it for the same Telegram getUpdates long-poll session, breaking
-    # messaging for both. `/init` still runs first and completes the normal
-    # s6 bootstrap (chown, profile reconcile) — only the final `dashboard`
-    # process loses the token, so a stray gateway here fails closed
-    # ("no bot token") instead of hijacking the live session.
-    command: ["sh", "-c", "unset TELEGRAM_BOT_TOKEN; exec /opt/hermes/docker/main-wrapper.sh dashboard --host 0.0.0.0 --no-open"]
+    # Do NOT wrap this command (e.g. `sh -c "unset ...; exec ..."`) to strip
+    # TELEGRAM_BOT_TOKEN from this container's environment — tried that, it
+    # doesn't work and it actively breaks something important. Two reasons:
+    #
+    # 1. Coolify injects every resource-level env var into every service in
+    #    this file, regardless of which service's `environment:` block
+    #    references it — so this container gets the same TELEGRAM_BOT_TOKEN
+    #    as `gateway` even though it's never supposed to talk to Telegram.
+    #    But `docker exec <this-container> hermes gateway run` (the actual
+    #    way this has bitten us — an operator manually starting a gateway
+    #    here, not the dashboard process spawning one itself) starts a
+    #    brand-new process tree from the container's base Docker env, not
+    #    from whatever this command line did — so unsetting the var here
+    #    doesn't protect against that path at all.
+    # 2. hermes_cli/container_boot.py's `_is_dashboard_container()` guard
+    #    (which DOES correctly stop this profile's gateway from
+    #    auto-starting at boot — the actual working protection) detects the
+    #    role by parsing this container's argv for a bare `dashboard` token
+    #    right after `main-wrapper.sh`. Wrapping the command in `sh -c
+    #    "...main-wrapper.sh dashboard..."` buries that token inside a
+    #    single quoted string, so it's no longer its own argv entry — the
+    #    detector stops recognizing this as a dashboard container, and the
+    #    cont-init reconciler starts a SECOND gateway here on every single
+    #    boot/redeploy instead of only when someone manually runs one.
+    #    Confirmed this regression live on 2026-08-09; reverted same day.
+    #
+    # There's no known way to close the credential-sharing gap from this
+    # file alone. Mitigation for now is operational: never run `hermes
+    # gateway *` commands against this container — only against `gateway`.
+    command: ["dashboard", "--host", "0.0.0.0", "--no-open"]
