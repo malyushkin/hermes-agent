@@ -72,41 +72,13 @@ services:
     environment:
       - HERMES_UID=${HERMES_UID:-10000}
       - HERMES_GID=${HERMES_GID:-10000}
-    # Bound to 0.0.0.0 so the /api/ws host-header guard doesn't reject
-    # SSH-tunneled clients (bound_host must match the client's Host header,
-    # and a tunneled client's Host header is never a bare "127.0.0.1").
-    # Actual access control is the firewall: this port is NOT opened in ufw,
-    # so it's still only reachable via `ssh -L 9119:localhost:9119` or from
-    # inside the VPS itself. HERMES_DASHBOARD_BASIC_AUTH_* env vars are
-    # mandatory here — a non-loopback bind fails closed without them.
+    # 0.0.0.0 (not 127.0.0.1) so /api/ws's host-header guard accepts
+    # SSH-tunneled clients; safe since port 9119 is closed in ufw and
+    # HERMES_DASHBOARD_BASIC_AUTH_* is mandatory for non-loopback binds.
+    # See DEPLOY.md "WebSocket 403 gotcha" for the full story.
     #
-    # Do NOT wrap this command (e.g. `sh -c "unset ...; exec ..."`) to strip
-    # TELEGRAM_BOT_TOKEN from this container's environment — tried that, it
-    # doesn't work and it actively breaks something important. Two reasons:
-    #
-    # 1. Coolify injects every resource-level env var into every service in
-    #    this file, regardless of which service's `environment:` block
-    #    references it — so this container gets the same TELEGRAM_BOT_TOKEN
-    #    as `gateway` even though it's never supposed to talk to Telegram.
-    #    But `docker exec <this-container> hermes gateway run` (the actual
-    #    way this has bitten us — an operator manually starting a gateway
-    #    here, not the dashboard process spawning one itself) starts a
-    #    brand-new process tree from the container's base Docker env, not
-    #    from whatever this command line did — so unsetting the var here
-    #    doesn't protect against that path at all.
-    # 2. hermes_cli/container_boot.py's `_is_dashboard_container()` guard
-    #    (which DOES correctly stop this profile's gateway from
-    #    auto-starting at boot — the actual working protection) detects the
-    #    role by parsing this container's argv for a bare `dashboard` token
-    #    right after `main-wrapper.sh`. Wrapping the command in `sh -c
-    #    "...main-wrapper.sh dashboard..."` buries that token inside a
-    #    single quoted string, so it's no longer its own argv entry — the
-    #    detector stops recognizing this as a dashboard container, and the
-    #    cont-init reconciler starts a SECOND gateway here on every single
-    #    boot/redeploy instead of only when someone manually runs one.
-    #    Confirmed this regression live on 2026-08-09; reverted same day.
-    #
-    # There's no known way to close the credential-sharing gap from this
-    # file alone. Mitigation for now is operational: never run `hermes
-    # gateway *` commands against this container — only against `gateway`.
+    # Do NOT wrap in `sh -c "..."` — hides the bare `dashboard` argv token
+    # container_boot.py's role detection needs, causing a duplicate gateway
+    # to start on every boot (confirmed regression, 2026-08-09). Never run
+    # `hermes gateway *` against this container either, only `gateway`.
     command: ["dashboard", "--host", "0.0.0.0", "--no-open"]
