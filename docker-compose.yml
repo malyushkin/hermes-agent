@@ -58,6 +58,10 @@ services:
     # listener (port 8443). No-op when TELEGRAM_WEBHOOK_URL is empty.
     labels:
       - traefik.enable=true
+      # Traefik sits on the `coolify` external network; with the gateway
+      # on two networks, force the Docker provider to pick this one so
+      # the loadbalancer server resolves to a routable IP.
+      - traefik.docker.network=coolify
       - traefik.http.routers.hermes-telegram.rule=Host(`hermes.maliushkin.me`) && PathPrefix(`/telegram`)
       - traefik.http.routers.hermes-telegram.entrypoints=websecure
       - traefik.http.routers.hermes-telegram.tls=true
