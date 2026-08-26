@@ -33,11 +33,14 @@ services:
     container_name: hermes
     restart: unless-stopped
     # Bridge `hermes-net` so Coolify's Traefik can route the Telegram
-    # webhook to the gateway's Tornado listener. 3000 stays published
-    # for the dashboard container (still on `network_mode: host`) to
-    # reach the gateway API at localhost:3000.
+    # webhook to the gateway's Tornado listener. The gateway also joins
+    # the `coolify` external network — that's where Coolify's Traefik
+    # lives, so service-name DNS resolves `gateway` from there. 3000
+    # stays published for the dashboard container (still on
+    # `network_mode: host`) to reach the gateway API at localhost:3000.
     networks:
       - hermes-net
+      - coolify
     ports:
       - "3000:3000"
       - "8443:8443"
@@ -108,3 +111,6 @@ services:
 networks:
   hermes-net:
     driver: bridge
+  coolify:
+    external: true
+    name: coolify
