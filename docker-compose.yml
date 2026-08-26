@@ -61,7 +61,7 @@ services:
       # the loadbalancer server resolves to a routable IP.
       - traefik.docker.network=coolify
       - traefik.http.routers.hermes-telegram.rule=Host(`hermes.maliushkin.me`) && PathPrefix(`/telegram`)
-      - traefik.http.routers.hermes-telegram.entrypoints=websecure
+      - traefik.http.routers.hermes-telegram.entrypoints=https
       - traefik.http.routers.hermes-telegram.tls=true
       - traefik.http.routers.hermes-telegram.tls.certresolver=letsencrypt
       - traefik.http.services.hermes-telegram.loadbalancer.server.port=8443
