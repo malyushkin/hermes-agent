@@ -37,8 +37,14 @@ services:
     # The dashboard container is on `network_mode: host` and reaches the
     # gateway via the published host port (3000) on localhost, so no
     # app-internal bridge is needed.
+    # pull_policy: never keeps Coolify's pre-deploy `docker compose pull
+    # --ignore-buildable` step from trying to fetch `hermes-agent` from
+    # Docker Hub — the image is built locally and never published there.
+    # compose 29.x's `--ignore-buildable` flag misses services that have
+    # both `image:` and `build:`, so the explicit policy is needed.
     networks:
       - coolify
+    pull_policy: never
     ports:
       - "3000:3000"
       - "8443:8443"
@@ -96,6 +102,8 @@ services:
     image: hermes-agent
     container_name: hermes-dashboard
     restart: unless-stopped
+    # See comment on gateway service — same reason.
+    pull_policy: never
     network_mode: host
     depends_on:
       - gateway
