@@ -47,6 +47,11 @@ services:
     environment:
       - HERMES_UID=${HERMES_UID:-10000}
       - HERMES_GID=${HERMES_GID:-10000}
+      # Dockerfile bakes PATH without /opt/data/node-global/bin (where our
+      # manually-installed global npm tools like `claude`/`tokscale` live —
+      # see DEPLOY.md). Prepend it here instead of patching the upstream
+      # Dockerfile, so bare tool names resolve without full-path workarounds.
+      - PATH=/opt/data/node-global/bin:/opt/hermes/bin:/opt/hermes/.venv/bin:/opt/data/.local/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
       # Telegram webhook mode. Set `TELEGRAM_WEBHOOK_URL` in Coolify to
       # switch from polling to webhook; empty defaults keep polling.
       - TELEGRAM_WEBHOOK_URL=${TELEGRAM_WEBHOOK_URL:-}
