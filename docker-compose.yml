@@ -63,7 +63,7 @@ services:
       - TELEGRAM_WEBHOOK_URL=${TELEGRAM_WEBHOOK_URL:-}
       - TELEGRAM_WEBHOOK_SECRET=${TELEGRAM_WEBHOOK_SECRET:-}
       - TELEGRAM_WEBHOOK_PORT=${TELEGRAM_WEBHOOK_PORT:-8443}
-    # Route hermes.maliushkin.me/telegram to the gateway's webhook
+    # Route hermes-srv.maliushkin.me/telegram to the gateway's webhook
     # listener (port 8443). No-op when TELEGRAM_WEBHOOK_URL is empty.
     labels:
       - traefik.enable=true
@@ -71,7 +71,8 @@ services:
       # on two networks, force the Docker provider to pick this one so
       # the loadbalancer server resolves to a routable IP.
       - traefik.docker.network=coolify
-      - traefik.http.routers.hermes-telegram.rule=Host(`hermes.maliushkin.me`) && PathPrefix(`/telegram`)
+      # hermes-srv is the name behind Cloudflare Access; the old name stays until the move is done.
+      - traefik.http.routers.hermes-telegram.rule=(Host(`hermes-srv.maliushkin.me`) || Host(`hermes.maliushkin.me`)) && PathPrefix(`/telegram`)
       - traefik.http.routers.hermes-telegram.entrypoints=https
       - traefik.http.routers.hermes-telegram.tls=true
       - traefik.http.routers.hermes-telegram.tls.certresolver=letsencrypt
