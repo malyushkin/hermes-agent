@@ -34,9 +34,9 @@ services:
     restart: unless-stopped
     # Join only the `coolify` external network — that's where Coolify's
     # Traefik lives, so service-name DNS resolves `gateway` from there.
-    # The dashboard container is on `network_mode: host` and reaches the
-    # gateway via the published host port (3000) on localhost, so no
-    # app-internal bridge is needed.
+    # The dashboard runs inside this container (s6 slot, HERMES_DASHBOARD=1):
+    # the gateway hands it a 127.0.0.1 api_origin, which a separate
+    # container never reaches ("archive failed: owner unreachable").
     # pull_policy: never keeps Coolify's pre-deploy `docker compose pull
     # --ignore-buildable` step from trying to fetch `hermes-agent` from
     # Docker Hub — the image is built locally and never published there.
@@ -48,6 +48,8 @@ services:
     ports:
       - "3000:3000"
       - "8443:8443"
+      # Loopback only: reached through the SSH tunnel, never from outside.
+      - "127.0.0.1:9119:9119"
     volumes:
       - ~/.hermes:/opt/data
     environment:
@@ -63,6 +65,7 @@ services:
       - TELEGRAM_WEBHOOK_URL=${TELEGRAM_WEBHOOK_URL:-}
       - TELEGRAM_WEBHOOK_SECRET=${TELEGRAM_WEBHOOK_SECRET:-}
       - TELEGRAM_WEBHOOK_PORT=${TELEGRAM_WEBHOOK_PORT:-8443}
+      - HERMES_DASHBOARD=1
     # Route hermes-srv.maliushkin.me/telegram to the gateway's webhook
     # listener (port 8443). No-op when TELEGRAM_WEBHOOK_URL is empty.
     labels:
@@ -98,31 +101,6 @@ services:
       # - GOOGLE_CHAT_SERVICE_ACCOUNT_JSON=${GOOGLE_CHAT_SERVICE_ACCOUNT_JSON}
       # - GOOGLE_CHAT_ALLOWED_USERS=${GOOGLE_CHAT_ALLOWED_USERS}
     command: ["gateway", "run"]
-
-  dashboard:
-    image: hermes-agent
-    container_name: hermes-dashboard
-    restart: unless-stopped
-    # See comment on gateway service — same reason.
-    pull_policy: never
-    network_mode: host
-    depends_on:
-      - gateway
-    volumes:
-      - ~/.hermes:/opt/data
-    environment:
-      - HERMES_UID=${HERMES_UID:-10000}
-      - HERMES_GID=${HERMES_GID:-10000}
-    # 0.0.0.0 (not 127.0.0.1) so /api/ws's host-header guard accepts
-    # SSH-tunneled clients; safe since port 9119 is closed in ufw and
-    # HERMES_DASHBOARD_BASIC_AUTH_* is mandatory for non-loopback binds.
-    # See DEPLOY.md "WebSocket 403 gotcha" for the full story.
-    #
-    # Do NOT wrap in `sh -c "..."` — hides the bare `dashboard` argv token
-    # container_boot.py's role detection needs, causing a duplicate gateway
-    # to start on every boot (confirmed regression, 2026-08-09). Never run
-    # `hermes gateway *` against this container either, only `gateway`.
-    command: ["dashboard", "--host", "0.0.0.0", "--no-open"]
 
 networks:
   coolify:
